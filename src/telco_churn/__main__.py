@@ -22,6 +22,13 @@ def main(argv: list[str] | None = None) -> int:
     train.add_argument('--config', type=Path, required=True)
     train.add_argument('--split-manifest', type=Path, required=True)
     train.add_argument('--run-dir', type=Path, required=True)
+    evaluate = commands.add_parser('evaluate', help='Evaluate a frozen run on its reserved test rows.')
+    evaluate.add_argument('--data', type=Path, required=True)
+    evaluate.add_argument('--run-dir', type=Path, required=True)
+    predict = commands.add_parser('predict', help='Score a feature-only CSV using a trusted local model.')
+    predict.add_argument('--data', type=Path, required=True)
+    predict.add_argument('--run-dir', type=Path, required=True)
+    predict.add_argument('--output', type=Path, required=True)
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
     try:
@@ -44,6 +51,12 @@ def main(argv: list[str] | None = None) -> int:
             from .config import load_config
             from .train import train_run
             train_run(args.data,load_config(args.config),args.split_manifest,args.run_dir)
+        elif args.command == 'evaluate':
+            from .evaluate import evaluate_run
+            print(json.dumps(evaluate_run(args.data,args.run_dir),indent=2))
+        elif args.command == 'predict':
+            from .predict import predict_batch
+            predict_batch(args.data,args.run_dir,args.output)
         return 0
     except (ValueError, OSError) as exc:
         logging.error('%s', exc)
