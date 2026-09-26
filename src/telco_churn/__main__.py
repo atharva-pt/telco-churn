@@ -17,6 +17,11 @@ def main(argv: list[str] | None = None) -> int:
     explore.add_argument('--data', type=Path, required=True)
     explore.add_argument('--config', type=Path, required=True)
     explore.add_argument('--output', type=Path, required=True)
+    train = commands.add_parser('train', help='Compare models and save a fitted pipeline.')
+    train.add_argument('--data', type=Path, required=True)
+    train.add_argument('--config', type=Path, required=True)
+    train.add_argument('--split-manifest', type=Path, required=True)
+    train.add_argument('--run-dir', type=Path, required=True)
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
     try:
@@ -35,6 +40,10 @@ def main(argv: list[str] | None = None) -> int:
             write_json_new(args.output/'split.json', manifest)
             explore_training(select_partition(frame, manifest['ids'], 'train'), args.output)
             logging.info('Training exploration saved to %s', args.output)
+        elif args.command == 'train':
+            from .config import load_config
+            from .train import train_run
+            train_run(args.data,load_config(args.config),args.split_manifest,args.run_dir)
         return 0
     except (ValueError, OSError) as exc:
         logging.error('%s', exc)
