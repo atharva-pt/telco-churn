@@ -11,6 +11,7 @@ from pathlib import Path
 from sklearn.pipeline import Pipeline
 
 from .data import CATEGORIES, FEATURE_COLUMNS, NUMERIC_COLUMNS
+from .config import TrainingConfig
 
 REPORT_NAMES = {'split.json', 'cv_results.json', 'validation.json'}
 
@@ -51,13 +52,27 @@ def _schema() -> dict:
     return {'features': FEATURE_COLUMNS, 'numeric': NUMERIC_COLUMNS, 'categories': CATEGORIES}
 
 
+def _validate_training_metadata(metadata: dict) -> None:
+    """Require the fields every scoring/evaluation consumer depends on."""
+    try:
+        source_hash = metadata['source_sha256']
+        if not isinstance(source_hash,str) or len(source_hash) != 64 or any(c not in '0123456789abcdef' for c in source_hash):
+            raise ValueError('Invalid source fingerprint.')
+        if not isinstance(metadata['config'],dict):
+            raise ValueError('Invalid saved training configuration.')
+        TrainingConfig(**metadata['config'])
+        threshold = metadata['threshold']
+        if type(threshold) not in (int,float) or not math.isfinite(threshold) or not 0 <= threshold <= 1:
+            raise ValueError('Invalid decision threshold.')
+    except (KeyError,TypeError) as exc:
+        raise ValueError('Missing or invalid training metadata.') from exc
+
+
 def save_bundle(run_dir: Path, pipeline: Pipeline, metadata: dict, reports: dict[str, object]) -> None:
     """Write a trusted local model; COMPLETE is committed only after all files."""
     if set(reports) != REPORT_NAMES:
         raise ValueError('A bundle requires exactly split.json, cv_results.json, validation.json.')
-    threshold = metadata.get('threshold')
-    if type(threshold) not in (int,float) or not math.isfinite(threshold) or not 0 <= threshold <= 1:
-        raise ValueError('Invalid decision threshold.')
+    _validate_training_metadata(metadata)
     run_dir = Path(run_dir)
     run_dir.mkdir(parents=True, exist_ok=False)
     with (run_dir/'pipeline.pkl').open('xb') as stream:
@@ -71,8 +86,8 @@ def save_bundle(run_dir: Path, pipeline: Pipeline, metadata: dict, reports: dict
              'model_sha256':file_sha256(run_dir/'pipeline.pkl'),
              'report_sha256':{name:file_sha256(run_dir/name) for name in sorted(REPORT_NAMES)}}
     write_json_new(run_dir/'metadata.json',saved)
-    with (run_dir/'COMPLETE').open('x') as stream:
-        stream.write('Model bundle complete.\n')
+    write_json_new(run_dir/'COMPLETE', {'format_version':1,
+                                       'metadata_sha256':file_sha256(run_dir/'metadata.json')})
 
 
 def load_bundle(run_dir: Path) -> tuple[Pipeline, dict]:
@@ -81,7 +96,14 @@ def load_bundle(run_dir: Path) -> tuple[Pipeline, dict]:
     try:
         if not (run_dir/'COMPLETE').is_file():
             raise ArtifactError('Model bundle is incomplete (missing COMPLETE).')
+        completion = json.loads((run_dir/'COMPLETE').read_text())
+        if completion.get('format_version') != 1 or completion.get('metadata_sha256') != file_sha256(run_dir/'metadata.json'):
+            raise ArtifactError('Metadata checksum mismatch or invalid completion record.')
         metadata = json.loads((run_dir/'metadata.json').read_text())
+        _validate_training_metadata(metadata)
+        if not isinstance(metadata['run_id'],str) or not metadata['run_id'].strip():
+            raise ArtifactError('Missing or invalid run identity.')
+        datetime.fromisoformat(metadata['created_utc'])
         if metadata['format_version'] != 1 or metadata['schema'] != _schema():
             raise ArtifactError('Model schema/format is incompatible.')
         current = environment_versions()

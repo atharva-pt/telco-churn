@@ -25,7 +25,7 @@ The four direct data/ML dependencies also install their required dependencies. T
 
 ## Run the workflow
 
-Activate the environment above first. Pick new output names for each experiment; commands refuse to overwrite earlier runs. The delivered example uses `reports/development` and `artifacts/telco-v1`. These commands use fresh names so they remain runnable:
+Activate the environment above first. Pick new output names for each experiment; commands refuse to overwrite earlier runs. The delivered example uses `reports/development` and `artifacts/telco-v2`. These commands use fresh names so they remain runnable:
 
 ```bash
 python -m telco_churn validate --data data/raw/telco.csv
@@ -108,6 +108,6 @@ A training bundle contains `pipeline.pkl`, `metadata.json`, `split.json`, `cv_re
 
 ## Model trust and reproducibility
 
-Only load models produced locally by this project that you trust. Python pickle can execute code; a matching checksum is not a security boundary. Loading checks completion, schema, source-code hash, model/report hashes, Python major/minor, and exact installed package versions. Using the dedicated locked environment makes compatibility checks predictable. Editing package code intentionally invalidates previously saved bundles: restore the matching revision or train a new run before evaluating a still-unseen holdout.
+Only load models produced locally by this project that you trust. Python pickle can execute code; a matching checksum is not a security boundary. Loading checks completion, metadata integrity, required provenance, schema, source-code hash, model/report hashes, Python major/minor, and exact installed package versions. The completion record binds the metadata bytes, including the decision threshold. Using the dedicated locked environment makes compatibility checks predictable. Editing package code intentionally invalidates previously saved bundles: restore the matching revision or train a new run before evaluating a still-unseen holdout.
 
 This project is a reproducible offline learning system. The CSV contains no observation timestamps, so it cannot prove a future prediction horizon, temporal performance, or that a retention action causes fewer customers to leave. A live rollout would also need validated feature availability, dated evaluation, monitoring ownership, and a business decision policy.

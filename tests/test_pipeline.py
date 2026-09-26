@@ -29,6 +29,10 @@ class PipelineTests(unittest.TestCase):
         self.assertTrue(np.isfinite(transformed).all())
         self.assertTrue(np.isfinite(model.predict_proba(self.X)).all())
         self.assertEqual(transformed.shape[1], model[:-1].transform(self.X).shape[1])
+        numeric = model.named_steps['preprocess'].named_transformers_['numeric'].transform(
+            X[['tenure','MonthlyCharges','TotalCharges']])
+        self.assertEqual(numeric.shape[1],3)
+        np.testing.assert_array_equal(numeric[:,2],np.zeros(len(X)))
 
     def test_allowed_unseen_category_and_column_order(self):
         for name in ('dummy','logistic','forest'):

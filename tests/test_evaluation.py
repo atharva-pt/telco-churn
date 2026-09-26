@@ -29,3 +29,13 @@ class EvaluationTests(unittest.TestCase):
             data.write_text(data.read_text().replace('100,No','101,No',1))
             with self.assertRaises(ValueError): evaluate_run(data,run)
             self.assertFalse((run/'evaluation').exists())
+
+    def test_interrupted_evaluation_keeps_attempt_record(self):
+        with tempfile.TemporaryDirectory() as d:
+            data,config,split,run,_=prepare_run(d)
+            train_run(data,config,split,run)
+            with patch('telco_churn.evaluate.classification_metrics',side_effect=RuntimeError('simulated interruption')):
+                with self.assertRaises(RuntimeError): evaluate_run(data,run)
+            self.assertTrue((run/'evaluation').is_dir())
+            self.assertFalse((run/'evaluation'/'COMPLETE').exists())
+            with self.assertRaises(FileExistsError): evaluate_run(data,run)

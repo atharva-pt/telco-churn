@@ -21,12 +21,13 @@ def evaluate_run(data_path: Path, run_dir: Path) -> dict:
     frame = read_dataset(data_path,labeled=True)
     manifest = json.loads((run_dir/'split.json').read_text())
     verify_manifest(manifest,data_path,frame,TrainingConfig(**metadata['config']))
+    # Reserve the attempt before scoring, including interrupted/concurrent attempts.
+    output.mkdir(exist_ok=False)
     test = select_partition(frame,manifest['ids'],'test')
     probabilities = model.predict_proba(test[FEATURE_COLUMNS])[:,list(model.classes_).index(1)]
     metrics = {**classification_metrics(test.Churn.to_numpy(),probabilities,metadata['threshold']),
                'run_id':metadata['run_id'], 'data_sha256':metadata['source_sha256'],
                'model_sha256':metadata['model_sha256'], 'evaluated_utc':datetime.now(timezone.utc).isoformat()}
-    output.mkdir(exist_ok=False)
     write_json_new(output/'metrics.json',metrics)
     plot_evaluation(test.Churn.to_numpy(),probabilities,metadata['threshold'],output)
     with (output/'COMPLETE').open('x') as stream:
